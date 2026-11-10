@@ -16,6 +16,7 @@
 <style>
   :root { --brand: #3b5bdb; --ink: #1c1f26; --muted: #6b7280; --line: #e5e7eb; --bg: #f6f7fb; }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
   main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
   .card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
@@ -198,7 +199,13 @@
     : 'This browser has no share sheet for web pages — use Copy text or a messenger below.';
   if (!hasShare) $('shareMain').hidden = true;
 
-  $('shareMain').addEventListener('click', cases.textWithUrl);
+  const selectedCase = cases[params.get('case')] ? params.get('case') : null;
+  if (selectedCase) {
+    ['cardImage', 'text', 'url', 'copyMain', 'fallback', 'shareHint'].forEach((id) => { $(id).hidden = true; });
+    document.querySelector('.tests').hidden = true;
+    $('shareMain').textContent = `Run case: ${selectedCase}`;
+  }
+  $('shareMain').addEventListener('click', cases[selectedCase || 'textWithUrl']);
   $('copyMain').addEventListener('click', () => copyText(textWithUrl));
   document.querySelectorAll('[data-case]').forEach((button) => {
     button.addEventListener('click', () => cases[button.dataset.case]());
