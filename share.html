@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Share your fundraiser — prototype</title>
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Help Maya run 10K for kids' hospital">
+<meta property="og:description" content="Every donation goes straight to the Children's Hospital fund. Prototype page for the share test.">
+<meta property="og:url" content="https://pavel-liaukovich-1.github.io/share-sheet-prototype/share.html">
+<meta property="og:image" content="https://pavel-liaukovich-1.github.io/share-sheet-prototype/card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root { --brand: #3b5bdb; --ink: #1c1f26; --muted: #6b7280; --line: #e5e7eb; --bg: #f6f7fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
+  .card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+  .card img { width: 100%; border-radius: 12px; display: block; aspect-ratio: 1200 / 630; background: var(--line); }
+  h1 { font-size: 22px; line-height: 1.25; margin: 14px 0 8px; }
+  .text { white-space: pre-wrap; margin: 0 0 6px; }
+  .link { color: var(--brand); word-break: break-all; font-size: 14px; }
+  button, .btn { display: block; width: 100%; padding: 14px; margin: 10px 0 0; border: 0; border-radius: 12px; font: 600 16px/1.2 inherit; font-family: inherit; text-align: center; text-decoration: none; cursor: pointer; }
+  .primary { background: var(--brand); color: #fff; }
+  .primary:disabled { opacity: .5; }
+  .secondary { background: #eef1fb; color: var(--brand); }
+  .fallback { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .fallback .btn { margin: 0; padding: 12px 4px; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  h2 { font-size: 15px; margin: 0 0 4px; }
+  .tests button { background: #f3f4f6; color: var(--ink); font-weight: 500; font-size: 14px; text-align: left; padding: 12px; }
+  .tests button small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  #log { font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; background: #111827; color: #d1fae5; border-radius: 12px; padding: 12px; min-height: 120px; max-height: 360px; overflow: auto; }
+  .row { display: flex; gap: 8px; }
+  .row button { margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <img id="cardImage" src="card.png" alt="Fundraiser card">
+    <h1 id="title"></h1>
+    <p class="text" id="text"></p>
+    <a class="link" id="url" target="_blank" rel="noopener"></a>
+
+    <button class="primary" id="shareMain" disabled>Share</button>
+    <button class="secondary" id="copyMain">Copy text</button>
+    <div class="fallback" id="fallback"></div>
+    <p class="hint" id="shareHint"></p>
+  </section>
+
+  <section class="card tests">
+    <h2>Test cases</h2>
+    <p class="hint">Each tap writes the payload and the result to the log below.</p>
+    <button data-case="textWithUrl">1. Text with the link inside<small>{ text: "…\n\nURL" } — recommended payload</small></button>
+    <button data-case="textAndUrl">2. Text and URL as separate fields<small>{ text, url } — Chrome Android glues them with a space</small></button>
+    <button data-case="titleTextUrl">3. Title, text and URL<small>{ title, text, url }</small></button>
+    <button data-case="imageAndText">4. Image and text<small>{ files: [card.png], text: "…\n\nURL" }</small></button>
+    <button data-case="imageOnly">5. Image only<small>{ files: [card.png] }</small></button>
+    <button data-case="afterDelay">6. Share 6 seconds after the tap<small>expected NotAllowedError: the tap activation has expired</small></button>
+    <button data-case="afterFetch">7. Share after a network request<small>await fetch() before share — Safari may lose the activation</small></button>
+    <button data-case="doubleCall">8. Two share calls in a row<small>expected InvalidStateError on the second call</small></button>
+    <p class="hint">Open the page with <code>?auto=1</code> to try share on load without a tap (expected NotAllowedError).</p>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <h2 style="flex:1">Log</h2>
+    </div>
+    <div id="log"></div>
+    <div class="row">
+      <button class="secondary" id="copyLog">Copy log</button>
+      <button class="secondary" id="clearLog">Clear</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const pageUrl = location.origin + location.pathname;
+
+  const content = {
+    title: params.get('title') || "Help Maya run 10K for kids' hospital",
+    text: params.get('text') ||
+      "I'm running my first 10K on December 7 to raise money for the Children's Hospital. " +
+      "I'm already at $1,240 of my $3,000 goal — every gift, big or small, gets me closer. " +
+      "Would you chip in or share this with a friend? 💙",
+    url: params.get('url') || pageUrl,
+  };
+  const textWithUrl = `${content.text}\n\n${content.url}`;
+
+  const $ = (id) => document.getElementById(id);
+  $('title').textContent = content.title;
+  $('text').textContent = content.text;
+  $('url').textContent = content.url;
+  $('url').href = content.url;
+
+  const logBox = $('log');
+  const log = (line) => {
+    const time = new Date().toISOString().slice(11, 23);
+    logBox.textContent += `[${time}] ${line}\n`;
+    logBox.scrollTop = logBox.scrollHeight;
+  };
+  const describePayload = (data) => JSON.stringify({
+    ...data,
+    files: data.files?.map((file) => `${file.name} (${file.type}, ${file.size} B)`),
+  });
+
+  let imageFile = null;
+
+  const environment = () => {
+    log(`UA: ${navigator.userAgent}`);
+    log(`secure context: ${window.isSecureContext}; top-level: ${window.top === window}`);
+    log(`navigator.share: ${typeof navigator.share}; navigator.canShare: ${typeof navigator.canShare}`);
+    log(`clipboard.writeText: ${typeof navigator.clipboard?.writeText}`);
+    log(`userActivation API: ${'userActivation' in navigator}`);
+    log(`referrer: ${document.referrer || '(none)'}`);
+  };
+
+  const share = async (label, data) => {
+    log(`▶ ${label}: ${describePayload(data)}`);
+    if (typeof navigator.share !== 'function') {
+      log('✖ navigator.share is not available — show the fallback');
+      return;
+    }
+    if (typeof navigator.canShare === 'function' && !navigator.canShare(data)) {
+      log('✖ canShare() returned false for this payload');
+      return;
+    }
+    if ('userActivation' in navigator) {
+      log(`  userActivation.isActive: ${navigator.userActivation.isActive}`);
+    }
+    try {
+      await navigator.share(data);
+      log('✔ resolved: the user picked a target (or the OS reports success)');
+    } catch (error) {
+      log(`✖ ${error.name}: ${error.message}`);
+    }
+  };
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      log(`✔ copied ${text.length} characters`);
+    } catch (error) {
+      log(`✖ copy failed — ${error.name}: ${error.message}`);
+    }
+  };
+
+  const cases = {
+    textWithUrl: () => share('text with url inside', { text: textWithUrl }),
+    textAndUrl: () => share('text + url', { text: content.text, url: content.url }),
+    titleTextUrl: () => share('title + text + url', { title: content.title, text: content.text, url: content.url }),
+    imageAndText: () => imageFile ? share('image + text', { files: [imageFile], text: textWithUrl }) : log('✖ image is not loaded yet'),
+    imageOnly: () => imageFile ? share('image only', { files: [imageFile] }) : log('✖ image is not loaded yet'),
+    afterDelay: () => {
+      log('… waiting 6 s');
+      setTimeout(() => share('after 6 s', { text: textWithUrl }), 6000);
+    },
+    afterFetch: async () => {
+      const startedAt = performance.now();
+      await fetch(`card.png?nocache=${Date.now()}`, { cache: 'no-store' });
+      log(`… fetch took ${Math.round(performance.now() - startedAt)} ms`);
+      await share('after fetch', { text: textWithUrl });
+    },
+    doubleCall: () => {
+      share('first call', { text: textWithUrl });
+      share('second call', { text: textWithUrl });
+    },
+  };
+
+  const fallbackLinks = [
+    ['WhatsApp', `https://wa.me/?text=${encodeURIComponent(textWithUrl)}`],
+    ['Telegram', `https://t.me/share/url?url=${encodeURIComponent(content.url)}&text=${encodeURIComponent(content.text)}`],
+    ['SMS', `sms:?&body=${encodeURIComponent(textWithUrl)}`],
+    ['Email', `mailto:?subject=${encodeURIComponent(content.title)}&body=${encodeURIComponent(textWithUrl)}`],
+    ['X', `https://x.com/intent/post?text=${encodeURIComponent(content.text)}&url=${encodeURIComponent(content.url)}`],
+    ['Facebook', `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(content.url)}`],
+  ];
+  for (const [name, href] of fallbackLinks) {
+    const link = document.createElement('a');
+    link.className = 'btn secondary';
+    link.textContent = name;
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.addEventListener('click', () => log(`→ fallback ${name}: ${href}`));
+    $('fallback').append(link);
+  }
+
+  const hasShare = typeof navigator.share === 'function';
+  $('shareHint').textContent = hasShare
+    ? 'Share opens your phone\'s share sheet. The buttons below work in any browser.'
+    : 'This browser has no share sheet for web pages — use Copy text or a messenger below.';
+  if (!hasShare) $('shareMain').hidden = true;
+
+  $('shareMain').addEventListener('click', cases.textWithUrl);
+  $('copyMain').addEventListener('click', () => copyText(textWithUrl));
+  document.querySelectorAll('[data-case]').forEach((button) => {
+    button.addEventListener('click', () => cases[button.dataset.case]());
+  });
+  $('copyLog').addEventListener('click', () => copyText(logBox.textContent));
+  $('clearLog').addEventListener('click', () => { logBox.textContent = ''; environment(); });
+
+  environment();
+
+  fetch('card.png')
+    .then((response) => response.blob())
+    .then((blob) => {
+      imageFile = new File([blob], 'fundraiser.png', { type: 'image/png' });
+      log(`image preloaded: ${imageFile.size} B; canShare(files): ${navigator.canShare?.({ files: [imageFile] }) ?? 'n/a'}`);
+    })
+    .catch((error) => log(`✖ image preload failed — ${error.name}: ${error.message}`))
+    .finally(() => { $('shareMain').disabled = false; });
+
+  if (params.get('auto') === '1') {
+    share('auto on load (no tap)', { text: textWithUrl });
+  }
+})();
+</script>
+</body>
+</html>
